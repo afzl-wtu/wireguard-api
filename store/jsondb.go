@@ -273,3 +273,17 @@ func (o *JsonDB) SaveGlobalSettings(globalSettings model.GlobalSetting) error {
 func (o *JsonDB) GetPath() string {
 	return o.dbPath
 }
+func (o *JsonDB) GetHashes() (model.ClientServerHashes, error) {
+	hashes := model.ClientServerHashes{}
+	return hashes, o.conn.Read("server", "hashes", &hashes)
+}
+
+func (o *JsonDB) SaveHashes(hashes model.ClientServerHashes) error {
+	hashesPath := path.Join(path.Join(o.dbPath, "server"), "hashes.json")
+	output := o.conn.Write("server", "hashes", hashes)
+	err := util.ManagePerms(hashesPath)
+	if err != nil {
+		return err
+	}
+	return output
+}
