@@ -15,7 +15,7 @@ type ApiServer struct {
 func NewApiServer() *ApiServer {
 	return &ApiServer{
 		Mux:  http.NewServeMux(),
-		Addr: ":8080",
+		Addr: ":2200",
 	}
 }
 
@@ -25,6 +25,5 @@ func (a *ApiServer) Start(store interfaces.IStore) error {
 }
 
 func (a *ApiServer) globalHandlers(store interfaces.IStore) {
-	a.Mux.HandleFunc("/api/v1/getconfig", handler.GetConfig(store))
-
+	a.Mux.HandleFunc("GET /api/v1/getconfig", handler.GetConfig(store))
 }
