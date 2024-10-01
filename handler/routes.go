@@ -8,6 +8,7 @@ import (
 	"github.com/afzl-wtu/wireguard-api/interfaces"
 	model "github.com/afzl-wtu/wireguard-api/models"
 	"github.com/afzl-wtu/wireguard-api/utils"
+	log "github.com/sirupsen/logrus"
 )
 
 type abc func(http.ResponseWriter, *http.Request)
@@ -41,7 +42,6 @@ func GetConfig(store interfaces.IStore) abc {
 
 		mutex.Lock()
 		inActiveClients := utils.GetInActiveClients()
-		mutex.Unlock()
 		if inActiveClients == nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			w.Write([]byte("Failed to get inactive clients"))
@@ -49,17 +49,31 @@ func GetConfig(store interfaces.IStore) abc {
 		}
 		var clientToSend model.Client
 		for _, inActiveClientString := range inActiveClients {
-			selectedInActiveClient := clientPublicKeys[clientString]
+			selectedInActiveClient := clientPublicKeys[inActiveClientString]
 			// check if slectedClient is reserved
-			for _, reservedClient := range reserverdConfigs {
-				if reservedClient.ClientID == selectedClient.ID {
-
+			index := -1
+			for i, reservedClient := range reserverdConfigs {
+				if reservedClient.ClientID == selectedInActiveClient.ID {
+					index = i
+					break
 				}
 			}
-			download := utils.BuildClientConfig(clientToSend, server, globalSettings)
-			reserverdConfigs = append(reserverdConfigs, ReservedClient{ClientID: clientToSend.ID, Time: time.Now()})
-			w.Write([]byte(download))
+			if index == -1 {
+				clientToSend = *selectedInActiveClient
+				reserverdConfigs = append(reserverdConfigs, ReservedClient{ClientID: selectedInActiveClient.ID, Time: time.Now()})
+				break
+			} else {
+				if time.Since(reserverdConfigs[index].Time) > time.Minute*1 {
+					clientToSend = *selectedInActiveClient
+					reserverdConfigs[index].Time = time.Now()
+					break
+				}
+			}
 
 		}
+		mutex.Unlock()
+		download := utils.BuildClientConfig(clientToSend, server, globalSettings)
+		log.Info("Total Reserved Configs: ", len(reserverdConfigs))
+		w.Write([]byte(download))
 	}
 }
