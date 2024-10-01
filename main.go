@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"os/exec"
 	"time"
 
 	"github.com/rs/xid"
@@ -30,7 +31,18 @@ func main() {
 		log.Fatal(err)
 	}
 	assets, _ := fs.Sub(fs.FS(embeddedAssets), "assets")
-	initServerConfig(store, assets)
+	startServer := initServerConfig(store, assets)
+	if !startServer {
+		cmd := exec.Command("systemctl", "start", "wg-quick@wg0")
+
+		// Run the command
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			log.Fatal(err)
+			return
+		}
+		log.Info(string(output))
+	}
 	apiServer := api.NewApiServer()
 	// assetsDir, _ := fs.Sub(fs.FS(embeddedAssets), "assets")
 	log.Info("Starting server on", apiServer.Addr)
@@ -85,7 +97,7 @@ func GenNewClients(store interfaces.IStore) {
 		client := model.Client{
 			Name:            fmt.Sprintf("client-%v", i),
 			Email:           "",
-			AllocatedIPs:    []string{fmt.Sprintf("10.8.0.%v/32", i+2)},
+			AllocatedIPs:    []string{fmt.Sprintf("10.7.0.%v/32", i+2)},
 			AllowedIPs:      []string{"0.0.0.0/0"},
 			ExtraAllowedIPs: []string{},
 			Endpoint:        "",
@@ -188,7 +200,7 @@ func NewClient(db interfaces.IStore, client model.Client) {
 
 }
 
-func initServerConfig(db interfaces.IStore, assetsDir fs.FS) {
+func initServerConfig(db interfaces.IStore, assetsDir fs.FS) bool {
 	settings, err := db.GetGlobalSettings()
 	if err != nil {
 		log.Fatalf("Cannot get global settings: %v", err)
@@ -196,7 +208,7 @@ func initServerConfig(db interfaces.IStore, assetsDir fs.FS) {
 	cients, _ := db.GetClients(false)
 	if _, err := os.Stat(settings.ConfigFilePath); err == nil && len(cients) > 0 {
 		// file exists, don't overwrite it implicitly
-		return
+		return true
 	}
 	GenNewClients(db)
 	// ApplyConfig(db, assetsDir)
@@ -215,4 +227,5 @@ func initServerConfig(db interfaces.IStore, assetsDir fs.FS) {
 	if err != nil {
 		log.Fatalf("Cannot create server config: %v", err)
 	}
+	return false
 }
